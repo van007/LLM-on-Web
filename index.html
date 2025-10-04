@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="LLM on Web - Local AI assistant running entirely in your browser">
+    <meta name="theme-color" content="#4f46e5">
+
+    <title>LLM on Web - Local AI Assistant</title>
+
+    <!-- JetBrains Mono Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/icon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header" role="banner">
+            <img src="assets/icons/icon.png" alt="LLM on Web Logo" class="app-icon">
+            <h1 class="app-title">LLM on Web</h1>
+            <button id="settingsBtn" class="settings-btn" aria-label="Toggle settings" aria-expanded="false">
+                ⚙️
+            </button>
+            <div class="status-container">
+                <span class="status-pill" id="statusPill" role="button" tabindex="0" aria-live="polite" aria-expanded="false">
+                    <span class="status-indicator"></span>
+                    <span class="status-text">Initializing...</span>
+                </span>
+                <div class="status-details" id="statusDetails" hidden>
+                    <div class="status-details-content">
+                        <div class="status-section">
+                            <h4>Models</h4>
+                            <div class="status-info">
+                                <div class="status-item">
+                                    <span class="status-label">LLM:</span>
+                                    <span class="status-value" id="statusLLM">Loading...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Embeddings:</span>
+                                    <span class="status-value" id="statusEmbedding">Loading...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">TTS:</span>
+                                    <span class="status-value" id="statusTTS">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="status-section">
+                            <h4>Generation Parameters</h4>
+                            <div class="status-info">
+                                <div class="status-item">
+                                    <span class="status-label">Temperature:</span>
+                                    <span class="status-value" id="statusTemp">1.0</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Top-p:</span>
+                                    <span class="status-value" id="statusTopP">0.9</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Max Tokens:</span>
+                                    <span class="status-value" id="statusMaxTokens">256</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="status-section">
+                            <h4>RAG System</h4>
+                            <div class="status-info">
+                                <div class="status-item">
+                                    <span class="status-label">Status:</span>
+                                    <span class="status-value" id="statusRAG">Disabled</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">Documents:</span>
+                                    <span class="status-value" id="statusDocs">0 documents</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="app-main">
+            <div class="chat-container">
+                <div class="chat-transcript" id="chatTranscript" role="log" aria-label="Chat conversation">
+                    <div class="welcome-message">
+                        <h2>Welcome to LLM on Web</h2>
+                        <p>Your private AI assistant running entirely in your browser. No data leaves your device.</p>
+                        <p class="loading-status">Loading models... This may take a few minutes on first run.</p>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-wrapper">
+                        <textarea
+                            id="chatInput"
+                            class="chat-input"
+                            placeholder="Type your message... (Enter to send, Shift+Enter for newline)"
+                            aria-label="Message input"
+                            rows="1"
+                        ></textarea>
+                        <div class="input-controls">
+                            <button
+                                id="sendBtn"
+                                class="btn btn-primary"
+                                aria-label="Send message"
+                                disabled
+                            >
+                                <span class="btn-icon">➤</span>
+                                Send
+                            </button>
+                            <button
+                                id="stopBtn"
+                                class="btn btn-secondary"
+                                aria-label="Stop generation"
+                                style="display: none;"
+                            >
+                                <span class="btn-icon">■</span>
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-stats">
+                        <span class="token-counter" id="tokenCounter">Tokens: 0</span>
+                        <span class="time-counter" id="timeCounter" style="display: none;">Time: 0s</span>
+                    </div>
+                </div>
+            </div>
+
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <h2>Settings</h2>
+                    <button
+                        id="sidebarToggle"
+                        class="sidebar-toggle"
+                        aria-label="Toggle sidebar"
+                        aria-expanded="true"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <div class="sidebar-content">
+                    <section class="settings-section">
+                        <h3>Model Configuration</h3>
+
+                        <div class="form-group">
+                            <label for="backendSelect">
+                                <span class="label-with-info">
+                                    Backend
+                                    <span class="info-icon" tabindex="0" aria-label="Backend information">
+                                        i
+                                        <span class="tooltip">WebGPU provides faster performance using your GPU. WASM is a fallback that works on all browsers. Auto-detect chooses the best available option.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <select id="backendSelect" class="form-control">
+                                <option value="auto">Auto-detect</option>
+                                <option value="webgpu">WebGPU</option>
+                                <option value="wasm">WASM</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="llmModelSelect">
+                                <span class="label-with-info">
+                                    Language Model
+                                    <span class="info-icon" tabindex="0" aria-label="Language Model information">
+                                        i
+                                        <span class="tooltip">The AI model that generates responses to your messages. Larger models provide better quality but use more memory and run slower.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <select id="llmModelSelect" class="form-control">
+                                <option value="onnx-community/Qwen2.5-0.5B-Instruct">Qwen2.5-0.5B-Instruct (500M)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="ttsModelSelect">
+                                <span class="label-with-info">
+                                    TTS Model
+                                    <span class="info-icon" tabindex="0" aria-label="TTS Model information">
+                                        i
+                                        <span class="tooltip">Text-to-Speech model that converts assistant responses to natural-sounding audio. Smaller models are faster but may have lower quality.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <select id="ttsModelSelect" class="form-control">
+                                <option value="onnx-community/Kokoro-82M-ONNX">Kokoro-82M-ONNX (82M)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="embeddingModelSelect">
+                                <span class="label-with-info">
+                                    Embedding Model
+                                    <span class="info-icon" tabindex="0" aria-label="Embedding Model information">
+                                        i
+                                        <span class="tooltip">Creates vector representations of your documents for semantic search. The dimension count affects search quality and memory usage.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <select id="embeddingModelSelect" class="form-control">
+                                <option value="Xenova/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384 dims)</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Generation Parameters</h3>
+
+                        <div class="form-group">
+                            <label for="temperatureSlider">
+                                <span class="label-with-info">
+                                    Temperature: <span id="temperatureValue">1.0</span>
+                                    <span class="info-icon" tabindex="0" aria-label="Temperature information">
+                                        i
+                                        <span class="tooltip">Controls randomness in responses. Lower values (0.0-0.7) make output more focused and deterministic. Higher values (1.0-2.0) make it more creative and varied.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <input
+                                type="range"
+                                id="temperatureSlider"
+                                class="slider"
+                                min="0"
+                                max="2"
+                                step="0.1"
+                                value="1.0"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="topPSlider">
+                                <span class="label-with-info">
+                                    Top-p: <span id="topPValue">0.9</span>
+                                    <span class="info-icon" tabindex="0" aria-label="Top-p information">
+                                        i
+                                        <span class="tooltip">Nucleus sampling threshold. Considers only tokens whose cumulative probability is below this value. Lower values (0.1-0.5) are more focused, higher values (0.9-1.0) allow more variety.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <input
+                                type="range"
+                                id="topPSlider"
+                                class="slider"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value="0.9"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="maxTokensSlider">
+                                <span class="label-with-info">
+                                    Max Tokens: <span id="maxTokensValue">256</span>
+                                    <span class="info-icon" tabindex="0" aria-label="Max Tokens information">
+                                        i
+                                        <span class="tooltip">Maximum length of the generated response. One token ≈ 0.75 words. Higher values allow longer responses but take more time to generate.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <input
+                                type="range"
+                                id="maxTokensSlider"
+                                class="slider"
+                                min="50"
+                                max="2048"
+                                step="50"
+                                value="256"
+                            >
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>
+                            <span class="label-with-info">
+                                RAG Settings
+                                <span class="info-icon" tabindex="0" aria-label="RAG Settings information">
+                                    i
+                                    <span class="tooltip">Retrieval-Augmented Generation allows the AI to search through your uploaded documents to provide more accurate, context-aware responses based on your specific content.</span>
+                                </span>
+                            </span>
+                        </h3>
+
+                        <div class="form-group">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="ragToggle" class="toggle-input" checked>
+                                <span class="toggle-switch"></span>
+                                <span class="toggle-text">
+                                    Enable RAG
+                                    <span class="info-icon" tabindex="0" aria-label="Enable RAG information">
+                                        i
+                                        <span class="tooltip">When enabled, the AI will search your uploaded documents for relevant information before generating responses. This provides more accurate answers based on your content.</span>
+                                    </span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="form-group" id="ragThresholdContainer" style="display: block;">
+                            <label for="ragThresholdSlider">
+                                <span class="label-with-info">
+                                    Similarity Threshold: <span id="ragThresholdValue">0.2</span>
+                                    <span class="info-icon" tabindex="0" aria-label="Similarity Threshold information">
+                                        i
+                                        <span class="tooltip">Controls how similar document chunks must be to your query to be included. Lower values (0.1-0.3) include more results, higher values (0.4-0.6) only include very relevant content.</span>
+                                    </span>
+                                </span>
+                            </label>
+                            <input
+                                type="range"
+                                id="ragThresholdSlider"
+                                class="slider"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value="0.2"
+                            >
+                            <small style="color: #666; font-size: 0.85em; display: block; margin-top: 4px;">
+                                Lower = more results, Higher = more relevant
+                            </small>
+                        </div>
+
+                        <div class="file-drop-zone" id="fileDropZone">
+                            <div class="drop-zone-content">
+                                <span class="drop-icon">📁</span>
+                                <p>Drop files here or click to browse</p>
+                                <p class="drop-hint">Supports .txt, .md, .pdf</p>
+                            </div>
+                            <input
+                                type="file"
+                                id="fileInput"
+                                class="file-input"
+                                accept=".txt,.md,.pdf"
+                                multiple
+                                aria-label="Upload documents"
+                            >
+                        </div>
+
+                        <div class="documents-info">
+                            <span>
+                                Documents: <span id="docCount">0</span>
+                                <span class="info-icon" tabindex="0" aria-label="Documents information">
+                                    i
+                                    <span class="tooltip">Number of documents uploaded and processed for RAG. Each document is split into smaller chunks for efficient searching.</span>
+                                </span>
+                            </span>
+                            <span>
+                                Chunks: <span id="chunkCount">0</span>
+                                <span class="info-icon" tabindex="0" aria-label="Chunks information">
+                                    i
+                                    <span class="tooltip">Total searchable text segments across all documents. Documents are split into ~800 token chunks with 200 token overlap for context continuity.</span>
+                                </span>
+                            </span>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>
+                            <span class="label-with-info">
+                                Document Management
+                                <span class="info-icon" tabindex="0" aria-label="Document Management information">
+                                    i
+                                    <span class="tooltip">Manage your uploaded documents stored in the browser's vector database. Documents are converted to embeddings for semantic search when RAG is enabled.</span>
+                                </span>
+                            </span>
+                        </h3>
+
+                        <div class="document-list-container" id="documentListContainer">
+                            <div id="documentList" class="document-list">
+                                <!-- Documents will be populated here -->
+                                <div class="no-documents">No documents uploaded yet</div>
+                            </div>
+                        </div>
+
+                        <div class="document-actions">
+                            <button id="refreshDocsBtn" class="btn btn-secondary">
+                                🔄 Refresh
+                            </button>
+                            <button id="clearAllDocsBtn" class="btn btn-danger">
+                                🗑️ Clear All
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Actions</h3>
+
+                        <div class="action-buttons">
+                            <button id="clearChatBtn" class="btn btn-secondary">Clear Chat</button>
+                            <button id="exportChatBtn" class="btn btn-secondary">Export Chat</button>
+                            <button id="warmupBtn" class="btn btn-secondary">Warm Up Model</button>
+                            <button id="clearCacheBtn" class="btn btn-danger">Clear Model Cache</button>
+                        </div>
+                    </section>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+
+    <!-- PDF.js Library v2.6.347 (stable version with .js files) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+    <script type="module">
+        import logger from './utils/logger.js';
+
+        // Configure PDF.js worker after library loads
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js';
+            logger.log('[PDF.js] Library v2.6.347 loaded successfully');
+        } else {
+            // Fallback: wait for load event
+            window.addEventListener('load', function() {
+                if (typeof pdfjsLib !== 'undefined') {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js';
+                    logger.log('[PDF.js] Library v2.6.347 configured on window load');
+                } else {
+                    logger.error('[PDF.js] Failed to load PDF.js library');
+                }
+            });
+        }
+    </script>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

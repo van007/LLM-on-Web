@@ -1,0 +1,56 @@
+Sample Document for LLM on Web RAG Testing
+===========================================
+
+This is a sample document that you can use to test the RAG (Retrieval Augmented Generation) functionality of the LLM on Web application.
+
+About LLM on Web
+----------------
+LLM on Web is a Progressive Web App that runs language models entirely in your browser. It uses WebGPU for acceleration when available and falls back to WASM for compatibility.
+
+Key Features:
+- Local processing - all data stays on your device
+- RAG support - upload documents for context-aware responses
+- WebGPU acceleration for faster inference
+- Offline capable once models are cached
+- Privacy-first design
+
+How to Test RAG
+---------------
+1. Enable RAG in the settings panel (toggle the "Enable RAG" switch)
+2. Upload this document using the file drop zone
+3. Ask questions about this document, such as:
+   - "What is LLM on Web?"
+   - "What are the key features?"
+   - "How do I test RAG functionality?"
+
+Technical Details
+-----------------
+The application uses:
+- Qwen2.5-0.5B-Instruct for text generation
+- all-MiniLM-L6-v2 for embeddings
+- IndexedDB for vector storage
+- Cosine similarity for semantic search
+
+The RAG pipeline:
+1. Documents are chunked into smaller segments
+2. Each chunk is converted to an embedding vector
+3. When you ask a question, it's also converted to an embedding
+4. The system finds the most similar chunks
+5. These chunks provide context for the LLM's response
+
+Tips for Best Results
+---------------------
+- Upload text files (.txt), Markdown files (.md), or code files
+- PDF support is basic - for best results, convert PDFs to text first
+- Keep documents focused on specific topics for better retrieval
+- The system works best with factual, informative content
+
+Example Questions
+-----------------
+After uploading this document, try asking:
+- "Explain how the RAG pipeline works"
+- "What file formats are supported?"
+- "What models does the app use?"
+- "How is privacy maintained?"
+
+This sample document demonstrates that the RAG system can accurately retrieve and use information from uploaded documents to provide contextual responses.
