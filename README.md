@@ -5,7 +5,7 @@
     <strong>Run AI models directly in your browser - no server required!</strong>
   </p>
   <p>
-    <strong>Version 0.1.0</strong>
+    <strong>Version 0.1.1</strong>
   </p>
   <p>
     A Progressive Web App featuring a chat interface with RAG (Retrieval Augmented Generation) capabilities for document-based Q&A.
