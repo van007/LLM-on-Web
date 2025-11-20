@@ -233,6 +233,63 @@ class TTSUI {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
+    sanitizeMarkdown(text) {
+        let cleaned = text;
+
+        // Remove code blocks (```...```)
+        cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
+
+        // Remove inline code (`...`) - use non-greedy
+        cleaned = cleaned.replace(/`(.+?)`/g, '$1');
+
+        // Remove bold (**...** or __...__) - use non-greedy to handle multiple sections
+        cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1');
+        cleaned = cleaned.replace(/__(.+?)__/g, '$1');
+
+        // Remove italic (*...* or _..._) - use lookaheads to avoid matching ** as two *
+        cleaned = cleaned.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '$1');
+        cleaned = cleaned.replace(/(?<!_)_(?!_)(.+?)_(?!_)/g, '$1');
+
+        // Remove strikethrough (~~...~~) - use non-greedy
+        cleaned = cleaned.replace(/~~(.+?)~~/g, '$1');
+
+        // Remove links [text](url) -> text - use non-greedy
+        cleaned = cleaned.replace(/\[(.+?)\]\([^)]+\)/g, '$1');
+
+        // Remove images ![alt](url)
+        cleaned = cleaned.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
+
+        // Remove headers (# ## ### etc)
+        cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
+
+        // Remove blockquotes (> )
+        cleaned = cleaned.replace(/^>\s+/gm, '');
+
+        // Remove list markers (-, *, +, 1., 2., etc)
+        cleaned = cleaned.replace(/^[\s]*[-*+]\s+/gm, '');
+        cleaned = cleaned.replace(/^[\s]*\d+\.\s+/gm, '');
+
+        // Remove horizontal rules (---, ***, ___)
+        cleaned = cleaned.replace(/^[\s]*[-*_]{3,}[\s]*$/gm, '');
+
+        // Remove HTML comments
+        cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
+
+        // Fallback: Remove any remaining stray markdown characters
+        cleaned = cleaned.replace(/[*_~`]/g, '');
+
+        // Remove multiple consecutive spaces (fixes TextSplitterStream truncation)
+        cleaned = cleaned.replace(/ {2,}/g, ' ');
+
+        // Remove trailing spaces from each line (fixes TextSplitterStream bug)
+        cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
+
+        // Clean up multiple newlines and trim
+        cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+
+        return cleaned;
+    }
+
     extractTextFromHTML(html) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
@@ -247,6 +304,9 @@ class TTSUI {
 
         let text = tempDiv.textContent || tempDiv.innerText || '';
         text = text.replace(/\s+/g, ' ').trim();
+
+        // Sanitize markdown syntax before returning
+        text = this.sanitizeMarkdown(text);
 
         return text;
     }
