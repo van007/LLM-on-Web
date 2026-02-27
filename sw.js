@@ -8,7 +8,7 @@ const logger = {
     debug: LOGGING_ENABLED ? console.debug.bind(console) : () => {}
 };
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 const CACHE_NAME = `llm-web-v${VERSION}`;
 const APP_SHELL_FILES = [
     '/',

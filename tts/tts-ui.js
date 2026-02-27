@@ -83,7 +83,7 @@ class TTSUI {
 
     async startTTS(button, messageContent, messageId, progressFill, progressText) {
         try {
-            const textContent = this.extractTextFromHTML(messageContent);
+            const textContent = this.prepareTextForTTS(messageContent);
 
             if (!ttsEngine.isReady()) {
                 this.updateButtonIcon(button, 'loading');
@@ -233,22 +233,76 @@ class TTSUI {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
-    extractTextFromHTML(html) {
+    /**
+     * Mirrors ChatUI.renderMarkdown but outputs link text only (no <a> tags).
+     * Keeps TTS decoupled from chat UI while using the same markdown patterns.
+     */
+    _renderMarkdownForTTS(text) {
+        let html = text;
+        // Escape HTML (matches renderMarkdown — makes DOM insertion XSS-safe)
+        html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // Code blocks → <pre><code>
+        html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, _lang, code) => {
+            return `<pre><code>${code.trim()}</code></pre>`;
+        });
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // Bold
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // Italic
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        // Links → plain text only (no URL spoken)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+        // NOTE: Unlike renderMarkdown, we do NOT convert \n to <br> here.
+        // DOM .textContent ignores <br> elements, so preserving \n as-is
+        // ensures line breaks survive the DOM extraction step.
+        return html;
+    }
+
+    /**
+     * Convert raw LLM markdown text to clean plain text for TTS.
+     * Pre-processes patterns renderMarkdown doesn't handle, then uses
+     * DOM .textContent to strip exactly what the app recognises as markup.
+     */
+    prepareTextForTTS(rawText) {
+        let text = rawText;
+
+        // --- Pre-process patterns not handled by renderMarkdown ---
+        // Remove code blocks entirely (we don't want code read aloud)
+        text = text.replace(/```[\s\S]*?```/g, '');
+        // Remove images ![alt](url)
+        text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
+        // Remove headers (# ## ### etc.)
+        text = text.replace(/^#{1,6}\s+/gm, '');
+        // Remove blockquotes
+        text = text.replace(/^>\s+/gm, '');
+        // Remove unordered list markers (-, *, +)
+        text = text.replace(/^[\s]*[-*+]\s+/gm, '');
+        // Remove ordered list markers (1., 2., etc.)
+        text = text.replace(/^[\s]*\d+\.\s+/gm, '');
+        // Remove horizontal rules (---, ***, ___)
+        text = text.replace(/^[\s]*[-*_]{3,}[\s]*$/gm, '');
+        // Remove strikethrough
+        text = text.replace(/~~(.+?)~~/g, '$1');
+        // Remove HTML comments
+        text = text.replace(/<!--[\s\S]*?-->/g, '');
+
+        // --- Convert remaining markdown (bold, italic, inline code, links) via DOM ---
+        const html = this._renderMarkdownForTTS(text);
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
 
-        const codeBlocks = tempDiv.querySelectorAll('pre code');
-        codeBlocks.forEach(block => {
-            block.textContent = '';
-        });
+        // Strip any <pre><code> blocks that survived (e.g. unclosed fences)
+        tempDiv.querySelectorAll('pre code').forEach(el => el.textContent = '');
 
-        const sources = tempDiv.querySelectorAll('.message-sources');
-        sources.forEach(source => source.remove());
+        let cleaned = tempDiv.textContent || '';
 
-        let text = tempDiv.textContent || tempDiv.innerText || '';
-        text = text.replace(/\s+/g, ' ').trim();
+        // --- Whitespace cleanup (TextSplitterStream compatibility) ---
+        cleaned = cleaned.replace(/ {2,}/g, ' ');
+        cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
+        cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
-        return text;
+        return cleaned;
     }
 
     stopAll() {
