@@ -5,7 +5,7 @@
     <strong>Run AI models directly in your browser - no server required!</strong>
   </p>
   <p>
-    <strong>Version 0.1.1</strong>
+    <strong>Version 0.1.2</strong>
   </p>
   <p>
     A Progressive Web App featuring a chat interface with RAG (Retrieval Augmented Generation) capabilities for document-based Q&A.
@@ -31,6 +31,8 @@
 - **PWA**: Install as a native app on any platform
 - **Multiple File Formats**: Supports TXT, MD, PDF, HTML, JSON, and code files
 - **Document Management**: View, delete individual documents or clear all at once
+- **Download Messages**: Save individual assistant messages as markdown files
+- **Download Audio**: Save generated TTS audio as WAV files
 - **System Status**: Click status indicator to view models, parameters, and document stats
 - **JetBrains Mono Font**: Clean monospace typography throughout the interface
 
@@ -112,6 +114,8 @@ The app includes high-quality text-to-speech functionality powered by Kokoro-82M
 3. **Playback Controls**: Click again to pause/resume playback
 4. **Progress Indicator**: Visual progress bar shows playback position
 5. **Streaming Indicator**: Shows "(streaming...)" for longer messages being generated
+6. **Download Message**: Click the download icon to save the message as a markdown file
+7. **Download Audio**: After TTS generation, click the audio download icon to save as WAV
 
 ### TTS Features
 - **WebGPU Accelerated**: Uses WebGPU for fast audio generation (falls back to WASM)
@@ -127,6 +131,7 @@ The app includes high-quality text-to-speech functionality powered by Kokoro-82M
 - **Offline Capable**: Works offline once the TTS model is cached
 - **High Quality**: Natural-sounding speech synthesis with Kokoro-82M
 - **Smart Mode Selection**: Automatically chooses between direct and streaming generation
+- **Download Audio**: Save generated audio as WAV files for offline listening
 
 ## ⚙️ Configuration
 

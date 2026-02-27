@@ -1036,6 +1036,45 @@ label.toggle-label {
     border: 1px solid var(--border);
 }
 
+.tts-button-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tts-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--background);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.tts-action-btn:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    transform: scale(1.05);
+}
+
+.tts-action-btn:active {
+    transform: scale(0.98);
+}
+
+.download-audio-btn {
+    animation: fadeInScale 0.3s ease;
+}
+
+@keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+}
+
 .tts-button {
     display: inline-flex;
     align-items: center;
@@ -1143,6 +1182,16 @@ label.toggle-label {
     .tts-button {
         width: 36px;
         height: 36px;
+    }
+
+    .tts-action-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .tts-action-btn svg {
+        width: 14px;
+        height: 14px;
     }
 
     .tts-progress-bar {

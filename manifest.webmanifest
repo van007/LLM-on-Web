@@ -1,5 +1,5 @@
 {
-    "version": "0.1.1",
+    "version": "0.1.2",
     "name": "LLM on Web - Local AI Assistant",
     "short_name": "LLM on Web",
     "description": "A private AI assistant that runs entirely in your browser using local language models",
