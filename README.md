@@ -120,10 +120,10 @@ The app includes high-quality text-to-speech functionality powered by Kokoro-82M
   - Lower latency to first audio
   - Memory-efficient processing
   - Visual streaming indicator during generation
-- **Smart Text Processing**: Automatically sanitizes markdown formatting before speech
-  - Removes asterisks, underscores, and other formatting characters
+- **Smart Text Processing**: Automatically strips markdown formatting before speech
+  - Converts markdown to plain text via DOM extraction — only recognized syntax is removed
+  - Preserves underscores in identifiers and asterisks in math expressions
   - Normalizes whitespace to prevent truncation issues
-  - Preserves natural speech flow with proper pauses
 - **Offline Capable**: Works offline once the TTS model is cached
 - **High Quality**: Natural-sounding speech synthesis with Kokoro-82M
 - **Smart Mode Selection**: Automatically chooses between direct and streaming generation

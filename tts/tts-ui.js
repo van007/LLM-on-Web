@@ -83,7 +83,7 @@ class TTSUI {
 
     async startTTS(button, messageContent, messageId, progressFill, progressText) {
         try {
-            const textContent = this.extractTextFromHTML(messageContent);
+            const textContent = this.prepareTextForTTS(messageContent);
 
             if (!ttsEngine.isReady()) {
                 this.updateButtonIcon(button, 'loading');
@@ -233,82 +233,76 @@ class TTSUI {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
-    sanitizeMarkdown(text) {
-        let cleaned = text;
-
-        // Remove code blocks (```...```)
-        cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
-
-        // Remove inline code (`...`) - use non-greedy
-        cleaned = cleaned.replace(/`(.+?)`/g, '$1');
-
-        // Remove bold (**...** or __...__) - use non-greedy to handle multiple sections
-        cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1');
-        cleaned = cleaned.replace(/__(.+?)__/g, '$1');
-
-        // Remove italic (*...* or _..._) - use lookaheads to avoid matching ** as two *
-        cleaned = cleaned.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '$1');
-        cleaned = cleaned.replace(/(?<!_)_(?!_)(.+?)_(?!_)/g, '$1');
-
-        // Remove strikethrough (~~...~~) - use non-greedy
-        cleaned = cleaned.replace(/~~(.+?)~~/g, '$1');
-
-        // Remove links [text](url) -> text - use non-greedy
-        cleaned = cleaned.replace(/\[(.+?)\]\([^)]+\)/g, '$1');
-
-        // Remove images ![alt](url)
-        cleaned = cleaned.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
-
-        // Remove headers (# ## ### etc)
-        cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
-
-        // Remove blockquotes (> )
-        cleaned = cleaned.replace(/^>\s+/gm, '');
-
-        // Remove list markers (-, *, +, 1., 2., etc)
-        cleaned = cleaned.replace(/^[\s]*[-*+]\s+/gm, '');
-        cleaned = cleaned.replace(/^[\s]*\d+\.\s+/gm, '');
-
-        // Remove horizontal rules (---, ***, ___)
-        cleaned = cleaned.replace(/^[\s]*[-*_]{3,}[\s]*$/gm, '');
-
-        // Remove HTML comments
-        cleaned = cleaned.replace(/<!--[\s\S]*?-->/g, '');
-
-        // Fallback: Remove any remaining stray markdown characters
-        cleaned = cleaned.replace(/[*_~`]/g, '');
-
-        // Remove multiple consecutive spaces (fixes TextSplitterStream truncation)
-        cleaned = cleaned.replace(/ {2,}/g, ' ');
-
-        // Remove trailing spaces from each line (fixes TextSplitterStream bug)
-        cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
-
-        // Clean up multiple newlines and trim
-        cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
-
-        return cleaned;
+    /**
+     * Mirrors ChatUI.renderMarkdown but outputs link text only (no <a> tags).
+     * Keeps TTS decoupled from chat UI while using the same markdown patterns.
+     */
+    _renderMarkdownForTTS(text) {
+        let html = text;
+        // Escape HTML (matches renderMarkdown — makes DOM insertion XSS-safe)
+        html = html.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // Code blocks → <pre><code>
+        html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, _lang, code) => {
+            return `<pre><code>${code.trim()}</code></pre>`;
+        });
+        // Inline code
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // Bold
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // Italic
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        // Links → plain text only (no URL spoken)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+        // NOTE: Unlike renderMarkdown, we do NOT convert \n to <br> here.
+        // DOM .textContent ignores <br> elements, so preserving \n as-is
+        // ensures line breaks survive the DOM extraction step.
+        return html;
     }
 
-    extractTextFromHTML(html) {
+    /**
+     * Convert raw LLM markdown text to clean plain text for TTS.
+     * Pre-processes patterns renderMarkdown doesn't handle, then uses
+     * DOM .textContent to strip exactly what the app recognises as markup.
+     */
+    prepareTextForTTS(rawText) {
+        let text = rawText;
+
+        // --- Pre-process patterns not handled by renderMarkdown ---
+        // Remove code blocks entirely (we don't want code read aloud)
+        text = text.replace(/```[\s\S]*?```/g, '');
+        // Remove images ![alt](url)
+        text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
+        // Remove headers (# ## ### etc.)
+        text = text.replace(/^#{1,6}\s+/gm, '');
+        // Remove blockquotes
+        text = text.replace(/^>\s+/gm, '');
+        // Remove unordered list markers (-, *, +)
+        text = text.replace(/^[\s]*[-*+]\s+/gm, '');
+        // Remove ordered list markers (1., 2., etc.)
+        text = text.replace(/^[\s]*\d+\.\s+/gm, '');
+        // Remove horizontal rules (---, ***, ___)
+        text = text.replace(/^[\s]*[-*_]{3,}[\s]*$/gm, '');
+        // Remove strikethrough
+        text = text.replace(/~~(.+?)~~/g, '$1');
+        // Remove HTML comments
+        text = text.replace(/<!--[\s\S]*?-->/g, '');
+
+        // --- Convert remaining markdown (bold, italic, inline code, links) via DOM ---
+        const html = this._renderMarkdownForTTS(text);
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
 
-        const codeBlocks = tempDiv.querySelectorAll('pre code');
-        codeBlocks.forEach(block => {
-            block.textContent = '';
-        });
+        // Strip any <pre><code> blocks that survived (e.g. unclosed fences)
+        tempDiv.querySelectorAll('pre code').forEach(el => el.textContent = '');
 
-        const sources = tempDiv.querySelectorAll('.message-sources');
-        sources.forEach(source => source.remove());
+        let cleaned = tempDiv.textContent || '';
 
-        let text = tempDiv.textContent || tempDiv.innerText || '';
-        text = text.replace(/\s+/g, ' ').trim();
+        // --- Whitespace cleanup (TextSplitterStream compatibility) ---
+        cleaned = cleaned.replace(/ {2,}/g, ' ');
+        cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
+        cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
-        // Sanitize markdown syntax before returning
-        text = this.sanitizeMarkdown(text);
-
-        return text;
+        return cleaned;
     }
 
     stopAll() {
