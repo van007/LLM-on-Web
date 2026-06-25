@@ -1397,3 +1397,200 @@ label.toggle-label {
         height: 6px;
     }
 }
+
+/* ==========================================================================
+   Onboarding flow — first-launch guided tour (Phase 1: engine & overlay)
+   New overlay layer only; uses existing tokens. No existing rule changed.
+   ========================================================================== */
+
+.ob-root {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+}
+
+.ob-root[hidden] { display: none; }
+
+/* Full dim used for centered (un-anchored) steps. */
+.ob-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(22, 23, 26, 0.55);
+    backdrop-filter: blur(1px);
+}
+
+[data-theme="dark"] .ob-backdrop { background: rgba(0, 0, 0, 0.6); }
+
+.ob-backdrop[hidden],
+.ob-spotlight[hidden] { display: none; }
+
+/* Spotlight cutout: a positioned box whose oversized shadow dims everything
+   around the highlighted control, leaving the control itself clear. */
+.ob-spotlight {
+    position: absolute;
+    border-radius: var(--radius-input);
+    box-shadow: 0 0 0 9999px rgba(22, 23, 26, 0.55);
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    background: var(--accent-wash);
+    pointer-events: none;
+    transition: left var(--transition), top var(--transition),
+                width var(--transition), height var(--transition);
+}
+
+[data-theme="dark"] .ob-spotlight { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); }
+
+/* Anchored card. */
+.ob-card {
+    position: absolute;
+    width: min(360px, calc(100vw - 32px));
+    background: var(--surface);
+    border: var(--hairline-w) solid var(--hairline);
+    border-radius: var(--radius-sharp);
+    box-shadow: var(--shadow-pop);
+    padding: calc(var(--space) * 2.5);
+    color: var(--text-primary);
+    transition: left var(--transition), top var(--transition);
+}
+
+.ob-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.ob-card--center {
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.ob-counter {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin: 0 0 calc(var(--space) * 1.5);
+}
+
+.ob-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 var(--space);
+}
+
+.ob-eyebrow[hidden] { display: none; }
+
+.ob-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 var(--space);
+}
+
+.ob-body {
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    margin: 0 0 calc(var(--space) * 2.5);
+}
+
+.ob-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space);
+}
+
+.ob-spacer { flex: 1; }
+
+.ob-btn {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    padding: calc(var(--space) * 0.875) calc(var(--space) * 2);
+    border-radius: var(--radius-pill);
+    border: var(--hairline-w) solid var(--hairline);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.ob-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--ink-secondary);
+}
+
+.ob-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.ob-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.ob-next {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+}
+
+.ob-next:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--on-accent);
+}
+
+/* Beak: a small rotated square bridging card and target. */
+.ob-beak {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: var(--surface);
+    border: var(--hairline-w) solid var(--hairline);
+    transform: rotate(45deg);
+}
+
+.ob-beak[hidden] { display: none; }
+
+.ob-beak--up {
+    top: -7px;
+    border-right: none;
+    border-bottom: none;
+}
+
+.ob-beak--down {
+    bottom: -7px;
+    border-left: none;
+    border-top: none;
+}
+
+/* Mobile: card becomes a bottom sheet (refined further in Phase 4). */
+@media (max-width: 768px) {
+    .ob-card,
+    .ob-card--center {
+        left: var(--space);
+        right: var(--space);
+        top: auto;
+        bottom: var(--space);
+        width: auto;
+        transform: none;
+    }
+
+    .ob-beak { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ob-spotlight,
+    .ob-card {
+        transition: none;
+    }
+}
