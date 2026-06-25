@@ -5,7 +5,7 @@
     <strong>Run AI models directly in your browser - no server required!</strong>
   </p>
   <p>
-    <strong>Version 0.1.2</strong>
+    <strong>Version 0.4.1</strong>
   </p>
   <p>
     A Progressive Web App featuring a chat interface with RAG (Retrieval Augmented Generation) capabilities for document-based Q&A.
@@ -34,7 +34,9 @@
 - **Download Messages**: Save individual assistant messages as markdown files
 - **Download Audio**: Save generated TTS audio as WAV files
 - **System Status**: Click status indicator to view models, parameters, and document stats
-- **JetBrains Mono Font**: Clean monospace typography throughout the interface
+- **Onboarding Tour**: Guided, interactive walkthrough for first-time users with contextual coachmarks
+- **Help Menu**: Header help menu with a Settings deep-dive and quick access to the tour
+- **Self-Hosted Fonts**: Geist and Bricolage Grotesque typography bundled for offline use
 
 ## 🎯 Quick Start
 
@@ -169,8 +171,13 @@ LLM-on-Web/
 │   ├── tts-engine.js # TTS model & streaming generation
 │   ├── audio-player.js # Audio playback & streaming queue
 │   └── tts-ui.js    # TTS UI components & streaming UI
+├── onboarding/      # First-run guided tour
+│   ├── onboarding.js # Tour engine, overlay & coachmarks
+│   └── steps.js     # Tour step definitions
 ├── ui/              # User interface
 │   └── chat-ui.js   # Chat interface & sessions
+├── assets/         # Static assets
+│   └── fonts/      # Self-hosted Geist & Bricolage Grotesque fonts
 └── utils/          # Utilities
     ├── text.js     # File processing & chunking
     └── idb.js      # IndexedDB wrapper
