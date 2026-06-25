@@ -1399,8 +1399,15 @@ label.toggle-label {
 }
 
 /* ==========================================================================
-   Onboarding flow — first-launch guided tour (Phase 1: engine & overlay)
+   Onboarding flow — first-launch guided tour
+   Phase 1: engine & overlay · Phase 3: live state line · Phase 4: styling
    New overlay layer only; uses existing tokens. No existing rule changed.
+
+   Phase 4 (editorial styling): the spotlight cutout picks up a faint
+   --accent-wash halo around the focused control; the backdrop, cutout and card
+   fade/rise in on launch; on mobile (≤768px) the card becomes a true bottom
+   sheet (rounded top, grab handle, safe-area padding, slide-up). All motion is
+   suppressed under prefers-reduced-motion; light/dark track the tokens.
    ========================================================================== */
 
 .ob-root {
@@ -1417,6 +1424,7 @@ label.toggle-label {
     inset: 0;
     background: rgba(22, 23, 26, 0.55);
     backdrop-filter: blur(1px);
+    animation: ob-fade-in var(--transition) both;
 }
 
 [data-theme="dark"] .ob-backdrop { background: rgba(0, 0, 0, 0.6); }
@@ -1429,16 +1437,23 @@ label.toggle-label {
 .ob-spotlight {
     position: absolute;
     border-radius: var(--radius-input);
-    box-shadow: 0 0 0 9999px rgba(22, 23, 26, 0.55);
+    /* Faint accent-wash halo hugs the control, then the dim fills outward. The
+       wash is listed first so it paints over the dim's inner edge. */
+    box-shadow: 0 0 0 6px var(--accent-wash),
+                0 0 0 9999px rgba(22, 23, 26, 0.55);
     outline: 2px solid var(--accent);
     outline-offset: 2px;
     background: var(--accent-wash);
     pointer-events: none;
+    animation: ob-fade-in var(--transition) both;
     transition: left var(--transition), top var(--transition),
                 width var(--transition), height var(--transition);
 }
 
-[data-theme="dark"] .ob-spotlight { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); }
+[data-theme="dark"] .ob-spotlight {
+    box-shadow: 0 0 0 6px var(--accent-wash),
+                0 0 0 9999px rgba(0, 0, 0, 0.6);
+}
 
 /* Anchored card. */
 .ob-card {
@@ -1450,6 +1465,8 @@ label.toggle-label {
     box-shadow: var(--shadow-pop);
     padding: calc(var(--space) * 2.5);
     color: var(--text-primary);
+    /* Editorial entrance: a short opacity + rise on launch. */
+    animation: ob-card-rise var(--transition) both;
     transition: left var(--transition), top var(--transition);
 }
 
@@ -1462,6 +1479,23 @@ label.toggle-label {
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
+    /* Same entrance, but keep the -50%/-50% centering through the keyframe. */
+    animation: ob-card-rise-center var(--transition) both;
+}
+
+@keyframes ob-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes ob-card-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ob-card-rise-center {
+    from { opacity: 0; transform: translate(-50%, calc(-50% + 8px)); }
+    to   { opacity: 1; transform: translate(-50%, -50%); }
 }
 
 .ob-counter {
@@ -1605,24 +1639,58 @@ label.toggle-label {
     border-left: none;
 }
 
-/* Mobile: card becomes a bottom sheet (refined further in Phase 4). */
+/* Mobile (≤768px): the card becomes a full-bleed bottom sheet — flush to the
+   bottom edge, rounded only at the top, with a grab handle and safe-area
+   padding. It slides up on launch (suppressed under reduced-motion below). */
 @media (max-width: 768px) {
     .ob-card,
     .ob-card--center {
-        left: var(--space);
-        right: var(--space);
+        left: 0;
+        right: 0;
         top: auto;
-        bottom: var(--space);
+        bottom: 0;
         width: auto;
+        max-width: none;
         transform: none;
+        border-radius: var(--radius-input) var(--radius-input) 0 0;
+        border-bottom: none;
+        padding-top: calc(var(--space) * 3.5);
+        padding-bottom: max(calc(var(--space) * 3), env(safe-area-inset-bottom));
+        animation: ob-sheet-up var(--transition) both;
+    }
+
+    /* Grab handle — a hairline pill centered at the top of the sheet. */
+    .ob-card::before {
+        content: "";
+        position: absolute;
+        top: calc(var(--space) * 1.25);
+        left: 50%;
+        transform: translateX(-50%);
+        width: 36px;
+        height: 4px;
+        border-radius: var(--radius-pill);
+        background: var(--hairline);
     }
 
     .ob-beak { display: none; }
 }
 
+@keyframes ob-sheet-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+}
+
+/* Honor reduced-motion: no slide/rise/fade, no repositioning easing. */
 @media (prefers-reduced-motion: reduce) {
     .ob-spotlight,
     .ob-card {
         transition: none;
+    }
+
+    .ob-backdrop,
+    .ob-spotlight,
+    .ob-card,
+    .ob-card--center {
+        animation: none;
     }
 }

@@ -2,12 +2,33 @@
 //
 // First-launch guided tour — engine & overlay (Phase 1) + step content,
 // anchoring and panel orchestration (Phase 2) + state-awareness and JIT
-// coachmarks (Phase 3).
+// coachmarks (Phase 3) + accessibility (Phase 5) + persistence & restart
+// (Phase 6).
+//
+// Accessibility (Phase 5): the card is a real modal dialog. Focus is moved
+// into it on open and trapped there (Tab/Shift+Tab wrap inside the card) until
+// the tour closes, then returned to the element that launched it. A polite,
+// visually-hidden live region announces each step change to screen readers, so
+// navigating the tour is conveyed without sight. Keyboard path is complete —
+// Esc dismisses, Enter / → advance, ← goes back — and Enter is left to the
+// focused action button when one is focused, so Back/Skip still work by keyboard.
 //
 // Self-contained spotlight engine: a dimmed backdrop with a cutout over the
 // *real* control being taught + an anchored hairline card. Pure CSS/JS, no
 // dependency. The engine is declarative — it reads ./steps.js and never
-// hardcodes DOM. Later phases wire persistence and the header replay button.
+// hardcodes DOM.
+//
+// Persistence & restart (Phase 6): the tour remembers itself through a
+// *versioned* localStorage flag (`llm-web-onboarded`) — set on finish AND skip
+// (both route through finish()), so a dismissed tour won't reappear. Storing a
+// version string rather than a bare boolean lets a future major release
+// re-trigger a "what's new" pass without nagging existing users. A new header
+// "replay tour" control (a NEW element, new id only) re-launches from step 1
+// at any time, in both themes. `init()` boots the layer — install the button,
+// then auto-start on a first/post-upgrade launch — and is the single thing the
+// additive app.js call in Phase 7 will invoke. Nothing here edits app.js or
+// index.html; the help button is created in JS, mirroring how the overlay root
+// is built in mount().
 //
 // State-awareness (Phase 3): the engine *reads* the app's existing signals
 // rather than re-running any pipeline. A MutationObserver on the status pill's
@@ -25,6 +46,9 @@ import logger from '../utils/logger.js';
 import STEPS from './steps.js';
 
 const ROOT_ID = 'onboarding-root';
+const HELP_BTN_ID = 'ob-help-btn';            // new header "replay tour" control
+const ONBOARDED_KEY = 'llm-web-onboarded';    // localStorage flag (versioned, not boolean)
+const ONBOARDED_VERSION = '1';                // bump to re-trigger the tour on a major release
 const GAP = 12;          // px between target and card
 const PAD = 6;           // px the spotlight cutout extends past the target
 const EDGE = 16;         // min px between card and viewport edge
@@ -60,6 +84,7 @@ class OnboardingEngine {
         this.titleEl = null;
         this.bodyEl = null;
         this.statusEl = null;
+        this.liveEl = null;
         this.counterEl = null;
         this.beakEl = null;
         this.backBtn = null;
@@ -95,6 +120,7 @@ class OnboardingEngine {
                     <button type="button" class="ob-btn ob-back" data-ob-back>Back</button>
                     <button type="button" class="ob-btn ob-next" data-ob-next>Next</button>
                 </div>
+                <div class="ob-live visually-hidden" aria-live="polite" aria-atomic="true"></div>
             </div>
         `;
 
@@ -110,6 +136,7 @@ class OnboardingEngine {
         this.titleEl = root.querySelector('.ob-title');
         this.bodyEl = root.querySelector('.ob-body');
         this.statusEl = root.querySelector('.ob-status');
+        this.liveEl = root.querySelector('.ob-live');
         this.backBtn = root.querySelector('[data-ob-back]');
         this.skipBtn = root.querySelector('[data-ob-skip]');
         this.nextBtn = root.querySelector('[data-ob-next]');
@@ -167,8 +194,23 @@ class OnboardingEngine {
         this._revealTarget(step);
 
         this._position(step);
-        // Move focus into the dialog so keyboard nav works (full trap = Phase 5).
+        // Announce the step to screen readers (the dialog stays mounted across
+        // steps, so re-focusing it won't re-read title/body — the live region is
+        // the reliable channel for step changes).
+        this._announce(step);
+        // Move focus into the dialog; Tab is trapped inside it (see _handleKeydown).
         this.card.focus({ preventScroll: true });
+    }
+
+    // Push the current step into the polite live region so assistive tech hears
+    // each change. Cleared first so an identical re-render (e.g. a JIT upgrade)
+    // still re-announces.
+    _announce(step) {
+        if (!this.liveEl) return;
+        const heading = `Step ${this.index + 1} of ${this.steps.length}.`;
+        const parts = [heading, step.title, step.body].filter(Boolean);
+        this.liveEl.textContent = '';
+        this.liveEl.textContent = parts.join(' ');
     }
 
     // Open/close the settings sidebar to match the current step, using the
@@ -318,6 +360,10 @@ class OnboardingEngine {
         this.active = false;
         this.root.hidden = true;
 
+        // Remember the tour was seen (finish OR skip → both land here) so it
+        // won't auto-start again until the onboarding version bumps.
+        this._markOnboarded();
+
         window.removeEventListener('resize', this._onReflow);
         window.removeEventListener('scroll', this._onReflow, true);
         document.removeEventListener('keydown', this._onKeydown, true);
@@ -341,6 +387,78 @@ class OnboardingEngine {
             this.lastFocus.focus({ preventScroll: true });
         }
         logger.log('[Onboarding] finished');
+    }
+
+    // --- persistence & restart (Phase 6) ------------------------------------
+
+    // The stored onboarded version string, or null if never completed / storage
+    // is unavailable (private mode, blocked) — both treated as "not onboarded".
+    _storedVersion() {
+        try { return window.localStorage.getItem(ONBOARDED_KEY); }
+        catch (_) { return null; }
+    }
+
+    // Persist that the tour has been seen at the current version.
+    _markOnboarded() {
+        try { window.localStorage.setItem(ONBOARDED_KEY, ONBOARDED_VERSION); }
+        catch (_) { /* storage unavailable — tour may re-show next launch; acceptable */ }
+    }
+
+    // True when the tour should auto-start: never completed, or the stored
+    // version predates the current one (post-upgrade "what's new" re-trigger).
+    shouldAutoStart() {
+        return this._storedVersion() !== ONBOARDED_VERSION;
+    }
+
+    // Clear the flag — for dev/testing and any future "reset" affordance.
+    resetOnboarded() {
+        try { window.localStorage.removeItem(ONBOARDED_KEY); }
+        catch (_) { /* no-op */ }
+    }
+
+    // Replay the whole tour from step 1, regardless of the stored flag. Tears
+    // down a running tour first so the header control doubles as a restart.
+    replay() {
+        if (this.active) this.finish();
+        this.start(STEPS, 0);
+    }
+
+    // Boot the onboarding layer: install the header replay control, then
+    // auto-start on a first (or post-upgrade) launch. Additive + idempotent —
+    // the single additive app.js call in Phase 7 will invoke this once after
+    // the shell mounts.
+    init() {
+        this.installHelpButton();
+        if (this.shouldAutoStart()) this.start(STEPS, 0);
+    }
+
+    // Create the header "replay tour" control as a NEW element (new id only; no
+    // existing element is touched). Reuses the shell's .icon-btn treatment so it
+    // matches the theme/settings icons in both themes. Idempotent.
+    installHelpButton() {
+        const existing = document.getElementById(HELP_BTN_ID);
+        if (existing) return existing;
+        const header = document.querySelector('.app-header');
+        if (!header) return null;
+
+        const btn = document.createElement('button');
+        btn.id = HELP_BTN_ID;
+        btn.type = 'button';
+        btn.className = 'icon-btn ob-help-btn';
+        btn.setAttribute('aria-label', 'Replay tour');
+        btn.title = 'Replay tour';
+        btn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>`;
+        btn.addEventListener('click', () => this.replay());
+
+        // First in the control cluster, before the theme toggle.
+        const themeToggle = document.getElementById('themeToggle');
+        if (themeToggle) header.insertBefore(btn, themeToggle);
+        else header.appendChild(btn);
+        return btn;
     }
 
     // --- geometry -----------------------------------------------------------
@@ -466,9 +584,43 @@ class OnboardingEngine {
         if (!this.active) return;
         switch (e.key) {
             case 'Escape': e.preventDefault(); this.skip(); break;
+            case 'Tab': this._trapFocus(e); break;
             case 'Enter':
+                // Let the focused action button handle its own activation, so
+                // Enter on Back/Skip does the expected thing rather than Next.
+                if (this._isOwnButton(e.target)) return;
+                e.preventDefault(); this.next(); break;
             case 'ArrowRight': e.preventDefault(); this.next(); break;
             case 'ArrowLeft': e.preventDefault(); this.back(); break;
+        }
+    }
+
+    // Is the event target one of the card's own action buttons?
+    _isOwnButton(el) {
+        return el === this.nextBtn || el === this.backBtn || el === this.skipBtn;
+    }
+
+    // Visible, enabled, focusable controls inside the card, in DOM order.
+    _focusable() {
+        const sel = 'button:not([disabled]), [href], input:not([disabled]),' +
+                    ' select:not([disabled]), textarea:not([disabled]),' +
+                    ' [tabindex]:not([tabindex="-1"])';
+        return Array.from(this.card.querySelectorAll(sel))
+            .filter((el) => el.offsetParent !== null || el.getClientRects().length);
+    }
+
+    // Keep Tab focus cycling within the card — the modal focus trap.
+    _trapFocus(e) {
+        const items = this._focusable();
+        if (!items.length) { e.preventDefault(); this.card.focus({ preventScroll: true }); return; }
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement;
+        const inside = this.card.contains(active) && active !== this.card;
+        if (e.shiftKey) {
+            if (!inside || active === first) { e.preventDefault(); last.focus(); }
+        } else if (!inside || active === last) {
+            e.preventDefault(); first.focus();
         }
     }
 }
