@@ -16,7 +16,24 @@
     <img src="https://img.shields.io/badge/PWA-Installable-orange?style=for-the-badge" alt="PWA">
     <img src="https://img.shields.io/badge/License-MPL%202.0-brightgreen?style=for-the-badge" alt="License">
   </p>
+  <p>
+    📖 <strong><a href="docs/USER_GUIDE.md">Read the User Guide</a></strong> — a full walkthrough with screenshots.
+  </p>
 </div>
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+  <img src="docs/images/home.png" alt="Home screen" width="49%">
+  <img src="docs/images/chat.png" alt="Chat exchange" width="49%">
+  <br>
+  <img src="docs/images/rag.png" alt="RAG document settings" width="49%">
+  <img src="docs/images/dark.png" alt="Dark theme" width="49%">
+</div>
+
+<p align="center"><em>See the <a href="docs/USER_GUIDE.md">User Guide</a> for a guided tour of every feature.</em></p>
 
 ---
 
