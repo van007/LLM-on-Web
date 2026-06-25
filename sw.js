@@ -8,7 +8,7 @@ const logger = {
     debug: LOGGING_ENABLED ? console.debug.bind(console) : () => {}
 };
 
-const VERSION = '0.3.1';
+const VERSION = '0.4.0';
 const CACHE_NAME = `llm-web-v${VERSION}`;
 const APP_SHELL_FILES = [
     '/',
@@ -16,6 +16,9 @@ const APP_SHELL_FILES = [
     '/styles.css',
     '/app.js',
     '/manifest.webmanifest',
+    // First-launch guided tour (offline-capable — part of the app shell)
+    '/onboarding/onboarding.js',
+    '/onboarding/steps.js',
     '/assets/icons/icon-192.png',
     '/assets/icons/icon-512.png',
     // Self-hosted brand fonts (offline-capable, Phase 2)
