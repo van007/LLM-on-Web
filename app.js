@@ -12,6 +12,7 @@ import {
 import { initializeEmbedder } from './embeddings/embedder.js';
 import { processFiles } from './utils/text.js';
 import logger from './utils/logger.js';
+import onboarding from './onboarding/onboarding.js';
 
 class LLMWebApp {
     constructor() {
@@ -1247,6 +1248,13 @@ class LLMWebApp {
 }
 
 new LLMWebApp();
+
+// Boot the first-launch guided tour (Phase 7 wiring — additive only; no
+// pipeline or shell logic is touched). This module is deferred, so the shell is
+// already parsed and the header / anchor targets exist. init() installs the
+// header "replay tour" control and auto-starts the tour on a first or
+// post-upgrade launch; it reads live app state and never blocks the app.
+onboarding.init();
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

@@ -8,7 +8,7 @@ const logger = {
     debug: LOGGING_ENABLED ? console.debug.bind(console) : () => {}
 };
 
-const VERSION = '0.1.2';
+const VERSION = '0.4.1';
 const CACHE_NAME = `llm-web-v${VERSION}`;
 const APP_SHELL_FILES = [
     '/',
@@ -16,8 +16,20 @@ const APP_SHELL_FILES = [
     '/styles.css',
     '/app.js',
     '/manifest.webmanifest',
+    // First-launch guided tour (offline-capable — part of the app shell)
+    '/onboarding/onboarding.js',
+    '/onboarding/steps.js',
     '/assets/icons/icon-192.png',
-    '/assets/icons/icon-512.png'
+    '/assets/icons/icon-512.png',
+    // Self-hosted brand fonts (offline-capable, Phase 2)
+    '/assets/fonts/fonts.css',
+    '/assets/fonts/geist-400.woff2',
+    '/assets/fonts/geist-500.woff2',
+    '/assets/fonts/geist-600.woff2',
+    '/assets/fonts/geist-mono-400.woff2',
+    '/assets/fonts/geist-mono-500.woff2',
+    '/assets/fonts/bricolage-grotesque-700.woff2',
+    '/assets/fonts/bricolage-grotesque-800.woff2'
 ];
 
 const RUNTIME_CACHE_NAME = `llm-web-runtime-v${VERSION}`;

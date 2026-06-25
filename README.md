@@ -5,7 +5,7 @@
     <strong>Run AI models directly in your browser - no server required!</strong>
   </p>
   <p>
-    <strong>Version 0.1.2</strong>
+    <strong>Version 0.4.1</strong>
   </p>
   <p>
     A Progressive Web App featuring a chat interface with RAG (Retrieval Augmented Generation) capabilities for document-based Q&A.
@@ -16,7 +16,24 @@
     <img src="https://img.shields.io/badge/PWA-Installable-orange?style=for-the-badge" alt="PWA">
     <img src="https://img.shields.io/badge/License-MPL%202.0-brightgreen?style=for-the-badge" alt="License">
   </p>
+  <p>
+    📖 <strong><a href="docs/USER_GUIDE.md">Read the User Guide</a></strong> — a full walkthrough with screenshots.
+  </p>
 </div>
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+  <img src="docs/images/home.png" alt="Home screen" width="49%">
+  <img src="docs/images/chat.png" alt="Chat exchange" width="49%">
+  <br>
+  <img src="docs/images/rag.png" alt="RAG document settings" width="49%">
+  <img src="docs/images/dark.png" alt="Dark theme" width="49%">
+</div>
+
+<p align="center"><em>See the <a href="docs/USER_GUIDE.md">User Guide</a> for a guided tour of every feature.</em></p>
 
 ---
 
@@ -34,7 +51,9 @@
 - **Download Messages**: Save individual assistant messages as markdown files
 - **Download Audio**: Save generated TTS audio as WAV files
 - **System Status**: Click status indicator to view models, parameters, and document stats
-- **JetBrains Mono Font**: Clean monospace typography throughout the interface
+- **Onboarding Tour**: Guided, interactive walkthrough for first-time users with contextual coachmarks
+- **Help Menu**: Header help menu with a Settings deep-dive and quick access to the tour
+- **Self-Hosted Fonts**: Geist and Bricolage Grotesque typography bundled for offline use
 
 ## 🎯 Quick Start
 
@@ -169,8 +188,13 @@ LLM-on-Web/
 │   ├── tts-engine.js # TTS model & streaming generation
 │   ├── audio-player.js # Audio playback & streaming queue
 │   └── tts-ui.js    # TTS UI components & streaming UI
+├── onboarding/      # First-run guided tour
+│   ├── onboarding.js # Tour engine, overlay & coachmarks
+│   └── steps.js     # Tour step definitions
 ├── ui/              # User interface
 │   └── chat-ui.js   # Chat interface & sessions
+├── assets/         # Static assets
+│   └── fonts/      # Self-hosted Geist & Bricolage Grotesque fonts
 └── utils/          # Utilities
     ├── text.js     # File processing & chunking
     └── idb.js      # IndexedDB wrapper

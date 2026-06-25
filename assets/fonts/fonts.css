@@ -1,0 +1,59 @@
+/* Self-hosted brand fonts (Phase 2 — offline-capable PWA).
+   All three families are SIL OFL 1.1 licensed and freely embeddable.
+   WOFF2, latin subset, font-display: swap so system fallbacks render
+   during the swap window (see fallbacks in --font-* token stacks). */
+
+/* ---- Bricolage Grotesque (display headings) ---- */
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url('bricolage-grotesque-700.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Bricolage Grotesque';
+    font-style: normal;
+    font-weight: 800;
+    font-display: swap;
+    src: url('bricolage-grotesque-800.woff2') format('woff2');
+}
+
+/* ---- Geist (body / UI) ---- */
+@font-face {
+    font-family: 'Geist';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('geist-400.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Geist';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('geist-500.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Geist';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('geist-600.woff2') format('woff2');
+}
+
+/* ---- Geist Mono (code / stats / labels) ---- */
+@font-face {
+    font-family: 'Geist Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('geist-mono-400.woff2') format('woff2');
+}
+@font-face {
+    font-family: 'Geist Mono';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('geist-mono-500.woff2') format('woff2');
+}
