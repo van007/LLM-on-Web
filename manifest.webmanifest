@@ -1,12 +1,12 @@
 {
-    "version": "0.1.2",
+    "version": "0.3.0",
     "name": "LLM on Web - Local AI Assistant",
     "short_name": "LLM on Web",
     "description": "A private AI assistant that runs entirely in your browser using local language models",
     "start_url": "/",
     "display": "standalone",
-    "theme_color": "#4f46e5",
-    "background_color": "#ffffff",
+    "theme_color": "#F4F3EF",
+    "background_color": "#F4F3EF",
     "orientation": "portrait-primary",
     "categories": ["productivity", "utilities"],
     "icons": [
