@@ -21,6 +21,9 @@
 //   gateOn      'models-ready'  → step is soft-gated until ready         (P3)
 //   jit         'assistant-message-complete' → deferred one-shot step    (P3)
 //   setsFlag    true → finishing here writes the versioned onboarded flag (P6)
+//   branch      'settings'  → primary action enters the SETTINGS_STEPS track (P9)
+//   track       'settings'  → step belongs to the opt-in deep-dive track    (P9)
+//   scrollIntoView true → engine scrolls the anchor into the sidebar's view (P9)
 
 const STEPS = [
     {
@@ -90,11 +93,94 @@ const STEPS = [
         target: '#settingsBtn',
         placement: 'bottom',
         setsFlag: true,
+        branch: 'settings',
         eyebrow: 'MAKE IT YOURS',
         title: 'Tune and replay',
-        body: 'Open Settings to choose models and adjust sampling, switch light and dark with the theme toggle, and replay this tour anytime from the help button up here. That is the whole pipeline — enjoy.',
+        body: 'That is the whole pipeline. Settings is where you choose models, shape replies, tune retrieval, and manage your files — want a quick tour of it? You can always replay either tour from the help button up here.',
+    },
+];
+
+// Optional "Settings deep-dive" track (DESIGN_OVERHAUL_PLAN.md §10.2a). Reuses
+// the same engine, card, and spotlight — it only adds steps + the finish-step
+// branch above. Two rules shape it:
+//   1. It never duplicates the in-place ⓘ info-icon tooltips already in the
+//      sidebar; it teaches *where things live and why they matter*, then hands
+//      off to those tooltips for parameter-level detail.
+//   2. One representative anchor per `.settings-section`, using EXISTING ids /
+//      classes only (no new ids on existing elements) — the engine scrolls each
+//      into the sidebar's view before spotlighting.
+// Every step carries `opensPanel: 'settings'` so the drawer is opened at S1 and
+// stays pinned through S6; prior panel state is restored by finish().
+const SETTINGS_STEPS = [
+    {
+        id: 's-open',
+        target: '#settingsBtn',
+        placement: 'bottom',
+        opensPanel: 'settings',
+        track: 'settings',
+        eyebrow: 'SETTINGS',
+        title: 'Everything lives here',
+        body: 'This panel holds every control — model choice, sampling, retrieval, your documents, and maintenance. It opened from this button; close it the same way. Let us walk it top to bottom.',
+    },
+    {
+        id: 's-models',
+        target: '#backendSelect',
+        placement: 'left',
+        opensPanel: 'settings',
+        track: 'settings',
+        scrollIntoView: true,
+        eyebrow: 'ENGINE',
+        title: 'Backend & models',
+        body: 'Pick the compute backend — WebGPU is fastest, WASM works everywhere, Auto-detect usually gets it right. Below it you choose the language, speech, and embedding models. Tap any ⓘ for the trade-offs.',
+    },
+    {
+        id: 's-sampling',
+        target: '#temperatureSlider',
+        placement: 'left',
+        opensPanel: 'settings',
+        track: 'settings',
+        scrollIntoView: true,
+        eyebrow: 'SAMPLING',
+        title: 'Shape the replies',
+        body: 'Temperature, Top-p, and Max Tokens control how random, focused, and long responses get — the header readouts mirror them live. The ⓘ icons give exact ranges; nudge and watch the difference.',
+    },
+    {
+        // `#ragToggle` itself is a visually-hidden checkbox (0×0); anchor the
+        // visible "Enable RAG" row instead (unique existing class, no new id).
+        id: 's-rag',
+        target: '.toggle-label',
+        placement: 'left',
+        opensPanel: 'settings',
+        track: 'settings',
+        scrollIntoView: true,
+        eyebrow: 'RETRIEVAL',
+        title: 'Tune retrieval',
+        body: 'Toggle RAG on or off, and set the similarity threshold — lower pulls in more passages, higher keeps only the closest matches. The document and chunk counts here track what is searchable.',
+    },
+    {
+        id: 's-docs',
+        target: '#documentList',
+        placement: 'left',
+        opensPanel: 'settings',
+        track: 'settings',
+        scrollIntoView: true,
+        eyebrow: 'YOUR LIBRARY',
+        title: 'Manage documents',
+        body: 'Everything you upload is listed here, stored locally in the browser. Refresh re-reads the list; Clear All wipes every document from the vector store — it cannot be undone, so it asks first.',
+    },
+    {
+        id: 's-actions',
+        target: '.action-buttons',
+        placement: 'left',
+        opensPanel: 'settings',
+        track: 'settings',
+        scrollIntoView: true,
+        setsFlag: true,
+        eyebrow: 'MAINTENANCE',
+        title: 'Chat & model actions',
+        body: 'Clear Chat empties the conversation; Export Chat saves the whole thread (the per-message download is separate). Warm Up Model pre-loads it for an instant first reply, and Clear Model Cache frees storage — models re-download next run.',
     },
 ];
 
 export default STEPS;
-export { STEPS };
+export { STEPS, SETTINGS_STEPS };

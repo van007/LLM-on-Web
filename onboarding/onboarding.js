@@ -43,10 +43,16 @@
 // mutates app.js / chat-ui.js / tts-ui.js logic.
 
 import logger from '../utils/logger.js';
-import STEPS from './steps.js';
+import STEPS, { SETTINGS_STEPS } from './steps.js';
+
+// Named tracks the engine can branch into (Phase 9). Keyed by the `branch` /
+// `track` string used in steps.js — the core's finish step branches to
+// 'settings', and the header help menu can start it standalone.
+const TRACKS = { settings: SETTINGS_STEPS };
 
 const ROOT_ID = 'onboarding-root';
 const HELP_BTN_ID = 'ob-help-btn';            // new header "replay tour" control
+const HELP_MENU_ID = 'ob-help-menu';          // its two-destination popover (P9)
 const ONBOARDED_KEY = 'llm-web-onboarded';    // localStorage flag (versioned, not boolean)
 const ONBOARDED_VERSION = '1';                // bump to re-trigger the tour on a major release
 const GAP = 12;          // px between target and card
@@ -90,6 +96,12 @@ class OnboardingEngine {
         this.backBtn = null;
         this.skipBtn = null;
         this.nextBtn = null;
+
+        // Header help control + its two-destination menu (Phase 9).
+        this.helpBtn = null;
+        this.helpMenu = null;
+        this._onHelpOutside = null;
+        this._onHelpKeydown = null;
     }
 
     // Build the overlay DOM once. New ids only; no existing element touched.
@@ -182,7 +194,14 @@ class OnboardingEngine {
         this.bodyEl.textContent = step.body || '';
 
         this.backBtn.disabled = index === 0;
-        this.nextBtn.textContent = index === this.steps.length - 1 ? 'Done' : 'Next';
+        // A branch step offers two destinations: the primary button enters the
+        // named track, and "Skip" reads as "Finish" (declining still finishes).
+        // Otherwise the last step's primary button reads "Done".
+        const isBranch = !!(step.branch && TRACKS[step.branch]);
+        this.nextBtn.textContent = isBranch
+            ? 'Tour settings'
+            : (index === this.steps.length - 1 ? 'Done' : 'Next');
+        this.skipBtn.textContent = isBranch ? 'Finish' : 'Skip';
 
         // State-awareness: reflect live model-load / JIT readiness in the card.
         this._updateStatusNote(step);
@@ -244,13 +263,25 @@ class OnboardingEngine {
     }
 
     // Scroll an anchored target into view within its nearest scroll container
-    // (e.g. the file drop zone deep inside the settings panel).
+    // (e.g. the file drop zone deep inside the settings panel, or the lower
+    // controls in the deep-dive track's scrolling `.sidebar-content`). The
+    // scroll is smooth, or instant under prefers-reduced-motion. Smooth scroll
+    // fires `scroll` events the capture listener already repositions on; the
+    // trailing timeout is a safety recompute once the scroll has settled.
     _revealTarget(step) {
         if (!step || !step.target) return;
         const el = document.querySelector(step.target);
-        if (el && typeof el.scrollIntoView === 'function') {
-            el.scrollIntoView({ block: 'center', inline: 'nearest' });
-        }
+        if (!el || typeof el.scrollIntoView !== 'function') return;
+        const reduce = window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        el.scrollIntoView({
+            block: 'center', inline: 'nearest',
+            behavior: reduce ? 'auto' : 'smooth',
+        });
+        this._scheduleReposition();
+        setTimeout(() => {
+            if (this.active && this.index >= 0) this._position(this.steps[this.index]);
+        }, PANEL_ANIM);
     }
 
     // --- state-awareness & JIT (Phase 3) ------------------------------------
@@ -351,9 +382,29 @@ class OnboardingEngine {
         if (step && step.jit) this.show(this.index);
     }
 
-    next() { this.show(this.index + 1); }
+    next() {
+        // On a branch step the primary action enters the named track rather
+        // than finishing — e.g. the core's finish step → the settings deep-dive.
+        const step = this.steps[this.index];
+        if (step && step.branch && TRACKS[step.branch]) {
+            this._enterTrack(step.branch);
+            return;
+        }
+        this.show(this.index + 1);
+    }
     back() { if (this.index > 0) this.show(this.index - 1); }
     skip() { this.finish(); }
+
+    // Swap the running tour onto another declarative track (Phase 9), starting
+    // at its first step. The active session — observers, listeners, lastFocus —
+    // is reused; only the step array changes, so no re-`start()`. The track's
+    // own final step carries `setsFlag`, and finish() restores any opened panel.
+    _enterTrack(name) {
+        const steps = TRACKS[name];
+        if (!Array.isArray(steps) || !steps.length) return this.finish();
+        this.steps = steps;
+        this.show(0);
+    }
 
     finish() {
         if (!this.active) return;
@@ -423,6 +474,15 @@ class OnboardingEngine {
         this.start(STEPS, 0);
     }
 
+    // Launch the Settings deep-dive track standalone (Phase 9), skipping the
+    // core pipeline tour — the header help menu's second destination. Like
+    // replay(), it runs regardless of the stored flag and tears down any
+    // in-progress tour first.
+    replaySettings() {
+        if (this.active) this.finish();
+        this.start(SETTINGS_STEPS, 0);
+    }
+
     // Boot the onboarding layer: install the header replay control, then
     // auto-start on a first (or post-upgrade) launch. Additive + idempotent —
     // the single additive app.js call in Phase 7 will invoke this once after
@@ -432,33 +492,120 @@ class OnboardingEngine {
         if (this.shouldAutoStart()) this.start(STEPS, 0);
     }
 
-    // Create the header "replay tour" control as a NEW element (new id only; no
-    // existing element is touched). Reuses the shell's .icon-btn treatment so it
-    // matches the theme/settings icons in both themes. Idempotent.
+    // Create the header help control as a NEW element (new ids only; no existing
+    // element is touched). Reuses the shell's .icon-btn treatment so it matches
+    // the theme/settings icons in both themes. The button opens a small popover
+    // menu with two destinations — replay the core pipeline tour, or jump
+    // straight into the Settings deep-dive track (Phase 9). Idempotent.
     installHelpButton() {
-        const existing = document.getElementById(HELP_BTN_ID);
-        if (existing) return existing;
+        if (document.getElementById(HELP_BTN_ID)) return document.getElementById(HELP_BTN_ID);
         const header = document.querySelector('.app-header');
         if (!header) return null;
+
+        // Wrapper anchors the absolutely-positioned menu beneath the button
+        // without disturbing the header's flex layout.
+        const wrap = document.createElement('div');
+        wrap.className = 'ob-help';
 
         const btn = document.createElement('button');
         btn.id = HELP_BTN_ID;
         btn.type = 'button';
         btn.className = 'icon-btn ob-help-btn';
-        btn.setAttribute('aria-label', 'Replay tour');
-        btn.title = 'Replay tour';
+        btn.setAttribute('aria-label', 'Tour & help');
+        btn.setAttribute('aria-haspopup', 'true');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.title = 'Tour & help';
         btn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="10"></circle>
                 <path d="M9.09 9a3 3 0 0 1 5.82 1c0 2-3 3-3 3"></path>
                 <line x1="12" y1="17" x2="12.01" y2="17"></line>
             </svg>`;
-        btn.addEventListener('click', () => this.replay());
+
+        const menu = document.createElement('div');
+        menu.id = HELP_MENU_ID;
+        menu.className = 'ob-help-menu';
+        menu.setAttribute('role', 'menu');
+        menu.setAttribute('aria-label', 'Tour & help');
+        menu.hidden = true;
+        menu.innerHTML = `
+            <button type="button" class="ob-help-item" role="menuitem" data-ob-tour="core">Replay tour</button>
+            <button type="button" class="ob-help-item" role="menuitem" data-ob-tour="settings">Tour the settings</button>
+        `;
+
+        this.helpBtn = btn;
+        this.helpMenu = menu;
+        // Bound handlers so the document-level listeners pair correctly.
+        this._onHelpOutside = this._handleHelpOutside.bind(this);
+        this._onHelpKeydown = this._handleHelpKeydown.bind(this);
+
+        btn.addEventListener('click', (e) => { e.stopPropagation(); this._toggleHelpMenu(); });
+        menu.addEventListener('click', (e) => {
+            const item = e.target.closest('[data-ob-tour]');
+            if (!item) return;
+            const dest = item.getAttribute('data-ob-tour');
+            // Restore focus to the button first so the tour captures it as the
+            // return target and finish() lands focus back in the header.
+            this._closeHelpMenu(true);
+            if (dest === 'settings') this.replaySettings();
+            else this.replay();
+        });
+
+        wrap.appendChild(btn);
+        wrap.appendChild(menu);
 
         // First in the control cluster, before the theme toggle.
         const themeToggle = document.getElementById('themeToggle');
-        if (themeToggle) header.insertBefore(btn, themeToggle);
-        else header.appendChild(btn);
+        if (themeToggle) header.insertBefore(wrap, themeToggle);
+        else header.appendChild(wrap);
         return btn;
+    }
+
+    _toggleHelpMenu() {
+        if (this.helpMenu && this.helpMenu.hidden) this._openHelpMenu();
+        else this._closeHelpMenu();
+    }
+
+    _openHelpMenu() {
+        if (!this.helpMenu) return;
+        this.helpMenu.hidden = false;
+        this.helpBtn.setAttribute('aria-expanded', 'true');
+        document.addEventListener('click', this._onHelpOutside, true);
+        document.addEventListener('keydown', this._onHelpKeydown, true);
+        const first = this.helpMenu.querySelector('[data-ob-tour]');
+        if (first) first.focus();
+    }
+
+    _closeHelpMenu(restoreFocus = false) {
+        if (!this.helpMenu || this.helpMenu.hidden) return;
+        this.helpMenu.hidden = true;
+        this.helpBtn.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('click', this._onHelpOutside, true);
+        document.removeEventListener('keydown', this._onHelpKeydown, true);
+        if (restoreFocus && this.helpBtn) this.helpBtn.focus();
+    }
+
+    // Click anywhere outside the open menu closes it.
+    _handleHelpOutside(e) {
+        if (this.helpMenu && !this.helpMenu.contains(e.target) && e.target !== this.helpBtn) {
+            this._closeHelpMenu();
+        }
+    }
+
+    // Keyboard for the open menu: Esc closes (returning focus to the button),
+    // arrows move between the two items, Tab is left to the browser.
+    _handleHelpKeydown(e) {
+        if (!this.helpMenu || this.helpMenu.hidden) return;
+        const items = Array.from(this.helpMenu.querySelectorAll('[data-ob-tour]'));
+        if (!items.length) return;
+        const i = items.indexOf(document.activeElement);
+        switch (e.key) {
+            case 'Escape':
+                e.preventDefault(); this._closeHelpMenu(true); break;
+            case 'ArrowDown':
+                e.preventDefault(); items[(i + 1 + items.length) % items.length].focus(); break;
+            case 'ArrowUp':
+                e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); break;
+        }
     }
 
     // --- geometry -----------------------------------------------------------
