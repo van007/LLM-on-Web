@@ -1,13 +1,20 @@
 // onboarding/onboarding.js
 //
 // First-launch guided tour — engine & overlay (Phase 1) + step content,
-// anchoring and panel orchestration (Phase 2).
+// anchoring and panel orchestration (Phase 2) + state-awareness and JIT
+// coachmarks (Phase 3).
 //
 // Self-contained spotlight engine: a dimmed backdrop with a cutout over the
 // *real* control being taught + an anchored hairline card. Pure CSS/JS, no
 // dependency. The engine is declarative — it reads ./steps.js and never
-// hardcodes DOM. Later phases wire state-awareness, JIT coachmarks,
-// persistence and the header replay button.
+// hardcodes DOM. Later phases wire persistence and the header replay button.
+//
+// State-awareness (Phase 3): the engine *reads* the app's existing signals
+// rather than re-running any pipeline. A MutationObserver on the status pill's
+// `data-status`/text surfaces model-load progress to the `awaitState`/`gateOn`
+// steps; a MutationObserver on the chat transcript detects the first completed
+// assistant message (its `.tts-controls` row) to arm the `jit` steps, so the
+// listen/save coachmarks never point at controls that don't exist yet.
 //
 // Scope guard: this is a NEW overlay layer only. It adds no ids to existing
 // elements; it reads existing elements to anchor and calls existing handlers
@@ -33,6 +40,13 @@ class OnboardingEngine {
         this._raf = 0;
         this._openedPanel = false;   // did *we* open the settings sidebar?
 
+        // State-awareness (Phase 3): read, never re-run.
+        this._modelState = 'loading';  // 'loading' | 'ready' | 'error'
+        this._modelText = '';          // live status-pill text for progress copy
+        this._messageReady = false;    // has an assistant message completed yet?
+        this._pillObserver = null;     // watches #statusPill
+        this._msgObserver = null;      // watches #chatTranscript for .tts-controls
+
         // Stable bound handlers so add/removeEventListener pair correctly.
         this._onReflow = this._scheduleReposition.bind(this);
         this._onKeydown = this._handleKeydown.bind(this);
@@ -45,6 +59,7 @@ class OnboardingEngine {
         this.eyebrowEl = null;
         this.titleEl = null;
         this.bodyEl = null;
+        this.statusEl = null;
         this.counterEl = null;
         this.beakEl = null;
         this.backBtn = null;
@@ -73,6 +88,7 @@ class OnboardingEngine {
                 <p class="ob-eyebrow"></p>
                 <h2 class="ob-title" id="ob-title"></h2>
                 <p class="ob-body" id="ob-body"></p>
+                <p class="ob-status" id="ob-status" role="status" aria-live="polite" hidden></p>
                 <div class="ob-actions">
                     <button type="button" class="ob-btn ob-skip" data-ob-skip>Skip</button>
                     <span class="ob-spacer"></span>
@@ -93,6 +109,7 @@ class OnboardingEngine {
         this.eyebrowEl = root.querySelector('.ob-eyebrow');
         this.titleEl = root.querySelector('.ob-title');
         this.bodyEl = root.querySelector('.ob-body');
+        this.statusEl = root.querySelector('.ob-status');
         this.backBtn = root.querySelector('[data-ob-back]');
         this.skipBtn = root.querySelector('[data-ob-skip]');
         this.nextBtn = root.querySelector('[data-ob-next]');
@@ -118,6 +135,10 @@ class OnboardingEngine {
         window.addEventListener('scroll', this._onReflow, { passive: true, capture: true });
         document.addEventListener('keydown', this._onKeydown, true);
 
+        // Begin reading app state so gated/JIT steps reflect reality.
+        this._watchModelState();
+        this._watchMessages();
+
         this.show(index);
     }
 
@@ -135,6 +156,9 @@ class OnboardingEngine {
 
         this.backBtn.disabled = index === 0;
         this.nextBtn.textContent = index === this.steps.length - 1 ? 'Done' : 'Next';
+
+        // State-awareness: reflect live model-load / JIT readiness in the card.
+        this._updateStatusNote(step);
 
         // Panel orchestration: open the real sidebar for steps that anchor
         // inside it, and restore it when we move on.
@@ -187,6 +211,104 @@ class OnboardingEngine {
         }
     }
 
+    // --- state-awareness & JIT (Phase 3) ------------------------------------
+
+    // Read the status pill's machine state + live text. We never re-run any
+    // pipeline — we observe the very signal the pill itself reflects:
+    //   data-status: 'loading' → 'ready' (also 'generating'/'processing' once
+    //   models are loaded) | 'error'. Absent (initial markup) counts as loading.
+    _watchModelState() {
+        const pill = document.getElementById('statusPill');
+        if (!pill) { this._modelState = 'loading'; return; }
+
+        const read = () => {
+            const s = pill.getAttribute('data-status');
+            if (s === 'error') this._modelState = 'error';
+            else if (s && s !== 'loading') this._modelState = 'ready';
+            else this._modelState = 'loading';
+            const textEl = pill.querySelector('.status-text');
+            this._modelText = (textEl ? textEl.textContent : '').trim();
+            this._onStateChange();
+        };
+
+        read();
+        this._pillObserver = new MutationObserver(read);
+        // Watch the state attribute and the live progress text.
+        this._pillObserver.observe(pill, {
+            attributes: true, attributeFilter: ['data-status'],
+            childList: true, characterData: true, subtree: true,
+        });
+    }
+
+    // Detect the first completed assistant message. The TTS control row
+    // (.tts-controls, holding .tts-button / .download-chat-btn) is appended only
+    // when a reply finishes, so its appearance is our "assistant-message-complete"
+    // signal — the one-shot trigger that arms the listen/save coachmarks.
+    _watchMessages() {
+        const transcript = document.getElementById('chatTranscript');
+        if (!transcript) return;
+
+        const hasControls = () => !!transcript.querySelector('.tts-controls, .tts-button');
+        this._messageReady = hasControls();
+
+        this._msgObserver = new MutationObserver(() => {
+            if (!this._messageReady && hasControls()) {
+                this._messageReady = true;
+                this._onMessageComplete();
+            }
+        });
+        this._msgObserver.observe(transcript, { childList: true, subtree: true });
+    }
+
+    // Does the current step's anchor exist and have layout right now?
+    _targetExists(step) {
+        return !!this._resolveTarget(step);
+    }
+
+    // A jit step whose control hasn't appeared yet: shown as a "deferred
+    // preview" (centered, no broken spotlight) until the trigger fires.
+    _isJitDeferred(step) {
+        return !!(step && step.jit && !this._targetExists(step));
+    }
+
+    // Surface live readiness in the card's status line for gated/JIT steps.
+    _updateStatusNote(step) {
+        let msg = '';
+        if (step && (step.awaitState === 'models-ready' || step.gateOn === 'models-ready')) {
+            if (this._modelState === 'error') {
+                msg = 'Model load failed — check your connection, then reload.';
+            } else if (this._modelState === 'ready') {
+                msg = step.gateOn
+                    ? '✓ Model ready — type a message and press Enter.'
+                    : `✓ ${this._modelText || 'Models ready'}`;
+            } else {
+                msg = step.gateOn
+                    ? 'Waiting for the model to finish loading… you can keep touring.'
+                    : (this._modelText || 'Downloading models…');
+            }
+        } else if (this._isJitDeferred(step)) {
+            msg = 'Appears on your first reply — the play and download buttons live on each assistant message.';
+        }
+
+        this.statusEl.textContent = msg;
+        this.statusEl.hidden = !msg;
+    }
+
+    // Model state changed → refresh the live note (and keep the gentle gate in
+    // sync). Never blocks; the step is always skippable.
+    _onStateChange() {
+        if (!this.active || this.index < 0) return;
+        this._updateStatusNote(this.steps[this.index]);
+    }
+
+    // First assistant reply completed → if we're parked on a deferred JIT step,
+    // upgrade it in place from centered preview to a real anchored coachmark.
+    _onMessageComplete() {
+        if (!this.active || this.index < 0) return;
+        const step = this.steps[this.index];
+        if (step && step.jit) this.show(this.index);
+    }
+
     next() { this.show(this.index + 1); }
     back() { if (this.index > 0) this.show(this.index - 1); }
     skip() { this.finish(); }
@@ -199,6 +321,10 @@ class OnboardingEngine {
         window.removeEventListener('resize', this._onReflow);
         window.removeEventListener('scroll', this._onReflow, true);
         document.removeEventListener('keydown', this._onKeydown, true);
+
+        // Stop reading app state.
+        if (this._pillObserver) { this._pillObserver.disconnect(); this._pillObserver = null; }
+        if (this._msgObserver) { this._msgObserver.disconnect(); this._msgObserver = null; }
 
         // Restore the sidebar if the tour opened it.
         if (this._openedPanel) {

@@ -1501,6 +1501,24 @@ label.toggle-label {
     margin: 0 0 calc(var(--space) * 2.5);
 }
 
+/* Live state-awareness line (Phase 3): model-load progress, gentle gate
+   "waiting for model…", and the JIT "appears on your first reply" note.
+   Reads as an inset meta strip with a faint accent wash. */
+.ob-status {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.45;
+    letter-spacing: 0.01em;
+    color: var(--ink-secondary);
+    background: var(--accent-wash);
+    border-left: 2px solid var(--accent-color, var(--accent));
+    border-radius: 2px;
+    padding: calc(var(--space) * 0.75) var(--space);
+    margin: 0 0 calc(var(--space) * 2.5);
+}
+
+.ob-status[hidden] { display: none; }
+
 .ob-actions {
     display: flex;
     align-items: center;
