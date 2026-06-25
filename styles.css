@@ -60,6 +60,7 @@
         --accent:        #FF5A1F;  /* brighter orange for contrast on dark */
         --accent-hover:  #FF7338;
         --accent-wash:   rgba(255, 90, 31, 0.12);
+        --on-accent:     #16171A;  /* dark ink on bright orange fills — AA on dark (5.7:1, incl. hover) */
         --shadow-pop:    0 8px 30px rgba(0, 0, 0, 0.45);
     }
 }
@@ -74,6 +75,7 @@
     --accent:        #FF5A1F;
     --accent-hover:  #FF7338;
     --accent-wash:   rgba(255, 90, 31, 0.12);
+    --on-accent:     #16171A;  /* dark ink on bright orange fills — AA on dark (5.7:1, incl. hover) */
     --shadow-pop:    0 8px 30px rgba(0, 0, 0, 0.45);
 }
 
