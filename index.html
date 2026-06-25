@@ -4,14 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="LLM on Web - Local AI assistant running entirely in your browser">
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="#F4F3EF">
+
+    <!-- Theme init (runs before paint to avoid flash). Reads saved preference,
+         falls back to system. Toggle wiring lives at the end of <body>. -->
+    <script>
+        (function () {
+            try {
+                var stored = localStorage.getItem('llm-web-theme');
+                var theme = stored
+                    || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+                var meta = document.querySelector('meta[name="theme-color"]');
+                if (meta) meta.setAttribute('content', theme === 'dark' ? '#0A0B0D' : '#F4F3EF');
+            } catch (e) {}
+        })();
+    </script>
 
     <title>LLM on Web - Local AI Assistant</title>
 
-    <!-- JetBrains Mono Font -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Brand fonts: Bricolage Grotesque (display), Geist (body), Geist Mono (mono).
+         Self-hosted WOFF2 for offline-capable PWA (no third-party origin). -->
+    <link rel="preload" as="font" type="font/woff2" href="assets/fonts/geist-400.woff2" crossorigin>
+    <link rel="preload" as="font" type="font/woff2" href="assets/fonts/bricolage-grotesque-700.woff2" crossorigin>
+    <link rel="stylesheet" href="assets/fonts/fonts.css">
 
     <link rel="stylesheet" href="styles.css">
     <link rel="manifest" href="manifest.webmanifest">
@@ -23,10 +39,7 @@
     <div class="app-container">
         <header class="app-header" role="banner">
             <img src="assets/icons/icon.png" alt="LLM on Web Logo" class="app-icon">
-            <h1 class="app-title">LLM on Web</h1>
-            <button id="settingsBtn" class="settings-btn" aria-label="Toggle settings" aria-expanded="false">
-                ⚙️
-            </button>
+            <h1 class="app-title">LLM on <span class="app-title-accent">Web</span></h1>
             <div class="status-container">
                 <span class="status-pill" id="statusPill" role="button" tabindex="0" aria-live="polite" aria-expanded="false">
                     <span class="status-indicator"></span>
@@ -84,14 +97,42 @@
                     </div>
                 </div>
             </div>
+            <button id="themeToggle" class="icon-btn theme-toggle" type="button" aria-label="Toggle color theme">
+                <svg class="icon-sun" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="icon-moon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+            <button id="settingsBtn" class="icon-btn settings-btn" aria-label="Toggle settings" aria-expanded="false">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+            </button>
         </header>
 
         <main class="app-main">
             <div class="chat-container">
                 <div class="chat-transcript" id="chatTranscript" role="log" aria-label="Chat conversation">
                     <div class="welcome-message">
-                        <h2>Welcome to LLM on Web</h2>
-                        <p>Your private AI assistant running entirely in your browser. No data leaves your device.</p>
+                        <p class="welcome-eyebrow">100% ON-DEVICE · NO SERVER</p>
+                        <h2>Your AI, running <span class="welcome-accent">locally</span>.</h2>
+                        <p class="welcome-lede">A private assistant that runs entirely in your browser. No data ever leaves your device.</p>
+                        <div class="capability-chips" aria-hidden="true">
+                            <span class="capability-chip">Chat</span>
+                            <span class="capability-chip">RAG</span>
+                            <span class="capability-chip">Speech</span>
+                        </div>
                         <p class="loading-status">Loading models... This may take a few minutes on first run.</p>
                     </div>
                 </div>
@@ -112,7 +153,12 @@
                                 aria-label="Send message"
                                 disabled
                             >
-                                <span class="btn-icon">➤</span>
+                                <span class="btn-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </span>
                                 Send
                             </button>
                             <button
@@ -121,7 +167,11 @@
                                 aria-label="Stop generation"
                                 style="display: none;"
                             >
-                                <span class="btn-icon">■</span>
+                                <span class="btn-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" stroke="none">
+                                        <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                                    </svg>
+                                </span>
                                 Stop
                             </button>
                         </div>
@@ -142,7 +192,10 @@
                         aria-label="Toggle sidebar"
                         aria-expanded="true"
                     >
-                        ✕
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
                     </button>
                 </div>
 
@@ -324,14 +377,20 @@
                                 step="0.05"
                                 value="0.2"
                             >
-                            <small style="color: #666; font-size: 0.85em; display: block; margin-top: 4px;">
+                            <small class="field-hint">
                                 Lower = more results, Higher = more relevant
                             </small>
                         </div>
 
                         <div class="file-drop-zone" id="fileDropZone">
                             <div class="drop-zone-content">
-                                <span class="drop-icon">📁</span>
+                                <span class="drop-icon" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                        <polyline points="17 8 12 3 7 8"></polyline>
+                                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
+                                </span>
                                 <p>Drop files here or click to browse</p>
                                 <p class="drop-hint">Supports .txt, .md, .pdf</p>
                             </div>
@@ -430,5 +489,29 @@
     </script>
 
     <script type="module" src="app.js"></script>
+
+    <!-- Theme toggle wiring (additive; no app.js logic change). -->
+    <script>
+        (function () {
+            var btn = document.getElementById('themeToggle');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            function apply(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                if (meta) meta.setAttribute('content', theme === 'dark' ? '#0A0B0D' : '#F4F3EF');
+                if (btn) {
+                    btn.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+                    btn.setAttribute('aria-pressed', String(theme === 'dark'));
+                }
+            }
+            apply(document.documentElement.getAttribute('data-theme') || 'light');
+            if (btn) {
+                btn.addEventListener('click', function () {
+                    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                    try { localStorage.setItem('llm-web-theme', next); } catch (e) {}
+                    apply(next);
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

@@ -579,8 +579,14 @@ class ChatUI {
         // Clear UI
         this.elements.chatTranscript.innerHTML = `
             <div class="welcome-message">
-                <h2>Welcome to LLM on Web</h2>
-                <p>Your private AI assistant running entirely in your browser.</p>
+                <p class="welcome-eyebrow">100% ON-DEVICE · NO SERVER</p>
+                <h2>Your AI, running <span class="welcome-accent">locally</span>.</h2>
+                <p class="welcome-lede">A private assistant that runs entirely in your browser. No data ever leaves your device.</p>
+                <div class="capability-chips" aria-hidden="true">
+                    <span class="capability-chip">Chat</span>
+                    <span class="capability-chip">RAG</span>
+                    <span class="capability-chip">Speech</span>
+                </div>
                 <p class="loading-status">Ready to chat!</p>
             </div>
         `;
