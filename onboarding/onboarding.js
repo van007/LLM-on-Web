@@ -1,53 +1,27 @@
 // onboarding/onboarding.js
 //
-// First-launch guided tour — Phase 1: engine & overlay.
+// First-launch guided tour — engine & overlay (Phase 1) + step content,
+// anchoring and panel orchestration (Phase 2).
 //
 // Self-contained spotlight engine: a dimmed backdrop with a cutout over the
 // *real* control being taught + an anchored hairline card. Pure CSS/JS, no
-// dependency. The engine is declarative — it reads a step table and never
-// hardcodes DOM. Later phases author the real step table (steps.js), wire
-// state-awareness, JIT coachmarks, persistence and the header replay button.
+// dependency. The engine is declarative — it reads ./steps.js and never
+// hardcodes DOM. Later phases wire state-awareness, JIT coachmarks,
+// persistence and the header replay button.
 //
 // Scope guard: this is a NEW overlay layer only. It adds no ids to existing
-// elements; it reads existing elements to anchor and (later) calls existing
-// handlers. Nothing here mutates app.js / chat-ui.js / tts-ui.js logic.
+// elements; it reads existing elements to anchor and calls existing handlers
+// (e.g. clicks the real settings button to open the sidebar). Nothing here
+// mutates app.js / chat-ui.js / tts-ui.js logic.
 
 import logger from '../utils/logger.js';
+import STEPS from './steps.js';
 
 const ROOT_ID = 'onboarding-root';
 const GAP = 12;          // px between target and card
 const PAD = 6;           // px the spotlight cutout extends past the target
 const EDGE = 16;         // min px between card and viewport edge
-
-// Phase 1 hardcoded dummy steps — exist only to validate positioning in both
-// themes and both placements (centered + anchored). Phase 2 replaces these by
-// importing the real declarative table from ./steps.js.
-const DUMMY_STEPS = [
-    {
-        id: 'welcome',
-        target: null,
-        placement: 'center',
-        eyebrow: '100% ON-DEVICE',
-        title: 'Welcome to LLM on Web',
-        body: 'Everything runs in your browser — nothing leaves your device. This short tour shows you the full pipeline. (Phase 1 placeholder content.)',
-    },
-    {
-        id: 'models',
-        target: '.status-pill',
-        placement: 'bottom',
-        eyebrow: 'STATUS',
-        title: 'Models load here',
-        body: 'This pill shows the one-time model download and turns from warning to success when ready. Anchored-step positioning test.',
-    },
-    {
-        id: 'compose',
-        target: '.chat-input',
-        placement: 'top',
-        eyebrow: 'CHAT',
-        title: 'Ask a question',
-        body: 'The composer streams tokens as the model replies. Above-placement test (card sits over the input).',
-    },
-];
+const PANEL_ANIM = 220;  // ms fallback for the sidebar open transition (160ms token + margin)
 
 class OnboardingEngine {
     constructor() {
@@ -57,6 +31,7 @@ class OnboardingEngine {
         this.active = false;
         this.lastFocus = null;
         this._raf = 0;
+        this._openedPanel = false;   // did *we* open the settings sidebar?
 
         // Stable bound handlers so add/removeEventListener pair correctly.
         this._onReflow = this._scheduleReposition.bind(this);
@@ -134,7 +109,7 @@ class OnboardingEngine {
     // Launch the tour from a given index.
     start(steps, index = 0) {
         this.mount();
-        this.steps = Array.isArray(steps) && steps.length ? steps : DUMMY_STEPS;
+        this.steps = Array.isArray(steps) && steps.length ? steps : STEPS;
         this.active = true;
         this.lastFocus = document.activeElement;
         this.root.hidden = false;
@@ -161,9 +136,55 @@ class OnboardingEngine {
         this.backBtn.disabled = index === 0;
         this.nextBtn.textContent = index === this.steps.length - 1 ? 'Done' : 'Next';
 
+        // Panel orchestration: open the real sidebar for steps that anchor
+        // inside it, and restore it when we move on.
+        this._syncPanel(step);
+        // Bring an anchored target into view (it may live in a scroll container).
+        this._revealTarget(step);
+
         this._position(step);
         // Move focus into the dialog so keyboard nav works (full trap = Phase 5).
         this.card.focus({ preventScroll: true });
+    }
+
+    // Open/close the settings sidebar to match the current step, using the
+    // EXISTING settings-button handler — never reimplementing it. We only ever
+    // close a panel that *we* opened, so a user-opened panel is left intact.
+    _syncPanel(step) {
+        const sidebar = document.getElementById('sidebar');
+        if (!sidebar) return;
+        const settingsBtn = document.getElementById('settingsBtn');
+        const needsPanel = step && step.opensPanel === 'settings';
+        const isOpen = sidebar.classList.contains('open');
+
+        if (needsPanel && !isOpen) {
+            if (settingsBtn) settingsBtn.click();
+            else sidebar.classList.add('open');
+            this._openedPanel = true;
+            // The drawer slides in (transform); reposition once it has settled
+            // so the spotlight and card track the final geometry.
+            const settle = () => {
+                if (!this.active) return;
+                this._revealTarget(step);
+                this._position(step);
+            };
+            sidebar.addEventListener('transitionend', settle, { once: true });
+            setTimeout(settle, PANEL_ANIM);
+        } else if (!needsPanel && this._openedPanel && isOpen) {
+            if (settingsBtn) settingsBtn.click();
+            else sidebar.classList.remove('open');
+            this._openedPanel = false;
+        }
+    }
+
+    // Scroll an anchored target into view within its nearest scroll container
+    // (e.g. the file drop zone deep inside the settings panel).
+    _revealTarget(step) {
+        if (!step || !step.target) return;
+        const el = document.querySelector(step.target);
+        if (el && typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ block: 'center', inline: 'nearest' });
+        }
     }
 
     next() { this.show(this.index + 1); }
@@ -178,6 +199,17 @@ class OnboardingEngine {
         window.removeEventListener('resize', this._onReflow);
         window.removeEventListener('scroll', this._onReflow, true);
         document.removeEventListener('keydown', this._onKeydown, true);
+
+        // Restore the sidebar if the tour opened it.
+        if (this._openedPanel) {
+            const sidebar = document.getElementById('sidebar');
+            const settingsBtn = document.getElementById('settingsBtn');
+            if (sidebar && sidebar.classList.contains('open')) {
+                if (settingsBtn) settingsBtn.click();
+                else sidebar.classList.remove('open');
+            }
+            this._openedPanel = false;
+        }
 
         if (this.lastFocus && typeof this.lastFocus.focus === 'function') {
             this.lastFocus.focus({ preventScroll: true });
@@ -249,6 +281,31 @@ class OnboardingEngine {
         const vw = window.innerWidth;
         const vh = window.innerHeight;
 
+        // Side placement: card beside the target (used by the docs step, which
+        // anchors inside the right-docked settings panel). Flips side if the
+        // requested one lacks room.
+        if (step.placement === 'left' || step.placement === 'right') {
+            const spaceLeft = rect.left;
+            const spaceRight = vw - rect.right;
+            let placeLeft = step.placement === 'left';
+            if (placeLeft && spaceLeft < cw + GAP + EDGE && spaceRight > spaceLeft) placeLeft = false;
+            if (!placeLeft && spaceRight < cw + GAP + EDGE && spaceLeft > spaceRight) placeLeft = true;
+
+            let left = placeLeft ? rect.left - GAP - cw : rect.right + GAP;
+            let top = rect.top + rect.height / 2 - ch / 2;
+            left = Math.max(EDGE, Math.min(left, vw - cw - EDGE));
+            top = Math.max(EDGE, Math.min(top, vh - ch - EDGE));
+            Object.assign(this.card.style, { left: `${left}px`, top: `${top}px` });
+
+            // Card left of target → beak on the card's right edge, and vice versa.
+            const beakY = Math.max(12, Math.min(rect.top + rect.height / 2 - top, ch - 12));
+            this.beakEl.hidden = false;
+            this._setBeak(placeLeft ? 'right' : 'left');
+            this.beakEl.style.left = '';
+            this.beakEl.style.top = `${beakY}px`;
+            return;
+        }
+
         const spaceBelow = vh - rect.bottom;
         const spaceAbove = rect.top;
         let placeBelow = step.placement !== 'top';
@@ -265,9 +322,18 @@ class OnboardingEngine {
         // Beak points at the target from the card edge.
         const beakX = Math.max(12, Math.min(rect.left + rect.width / 2 - left, cw - 12));
         this.beakEl.hidden = false;
-        this.beakEl.classList.toggle('ob-beak--up', placeBelow);
-        this.beakEl.classList.toggle('ob-beak--down', !placeBelow);
+        this._setBeak(placeBelow ? 'up' : 'down');
+        this.beakEl.style.top = '';
         this.beakEl.style.left = `${beakX}px`;
+    }
+
+    // Set the beak orientation, clearing the other three variants.
+    _setBeak(dir) {
+        const b = this.beakEl;
+        b.classList.toggle('ob-beak--up', dir === 'up');
+        b.classList.toggle('ob-beak--down', dir === 'down');
+        b.classList.toggle('ob-beak--left', dir === 'left');
+        b.classList.toggle('ob-beak--right', dir === 'right');
     }
 
     _handleKeydown(e) {

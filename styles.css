@@ -1573,6 +1573,20 @@ label.toggle-label {
     border-top: none;
 }
 
+/* Horizontal beaks for side-anchored cards (e.g. the docs step beside the
+   right-docked settings panel). Vertical offset is set inline by the engine. */
+.ob-beak--left {
+    left: -7px;
+    border-top: none;
+    border-right: none;
+}
+
+.ob-beak--right {
+    right: -7px;
+    border-bottom: none;
+    border-left: none;
+}
+
 /* Mobile: card becomes a bottom sheet (refined further in Phase 4). */
 @media (max-width: 768px) {
     .ob-card,
